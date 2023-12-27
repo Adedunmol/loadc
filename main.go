@@ -15,11 +15,21 @@ type Command struct {
 	URL           *string
 }
 
+type ResponseResult struct {
+	Successes int
+	Failures  int
+}
+
 func makeRequest() {
 
 	command := Command{
 		RequestNumber: flag.Int("n", 10, "Number of requests"),
 		URL:           flag.String("u", "", "URL to make request(s) to"),
+	}
+
+	responseResult := ResponseResult{
+		Successes: 0,
+		Failures:  0,
 	}
 
 	flag.Parse()
@@ -37,6 +47,15 @@ func makeRequest() {
 			return
 		}
 
-		fmt.Println("Response code: ", response.StatusCode)
+		if response.StatusCode < 299 {
+			responseResult.Successes += 1
+		}
+
+		if response.StatusCode >= 500 {
+			responseResult.Failures += 1
+		}
 	}
+
+	fmt.Println("Successes: ", responseResult.Successes)
+	fmt.Println("Failures: ", responseResult.Failures)
 }
