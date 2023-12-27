@@ -1,9 +1,9 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
-	"os"
 )
 
 func main() {
@@ -11,14 +11,24 @@ func main() {
 }
 
 func makeRequest() {
-	rawURL := os.Args[1]
+	noOfRequests := flag.Int("n", 10, "Number of requests")
+	url := flag.String("u", "", "URL to make request(s) to")
 
-	response, err := http.Head(rawURL)
+	flag.Parse()
 
-	if err != nil {
-		fmt.Println(err)
+	if *url == "" {
+		fmt.Println("no url to make request to")
 		return
 	}
 
-	fmt.Println("Response code: ", response.StatusCode)
+	for i := 0; i < *noOfRequests; i++ {
+		response, err := http.Head(*url)
+
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		fmt.Println("Response code: ", response.StatusCode)
+	}
 }
