@@ -10,19 +10,27 @@ func main() {
 	makeRequest()
 }
 
+type Command struct {
+	RequestNumber *int
+	URL           *string
+}
+
 func makeRequest() {
-	noOfRequests := flag.Int("n", 10, "Number of requests")
-	url := flag.String("u", "", "URL to make request(s) to")
+
+	command := Command{
+		RequestNumber: flag.Int("n", 10, "Number of requests"),
+		URL:           flag.String("u", "", "URL to make request(s) to"),
+	}
 
 	flag.Parse()
 
-	if *url == "" {
+	if *command.URL == "" {
 		fmt.Println("no url to make request to")
 		return
 	}
 
-	for i := 0; i < *noOfRequests; i++ {
-		response, err := http.Head(*url)
+	for i := 0; i < *command.RequestNumber; i++ {
+		response, err := http.Head(*command.URL)
 
 		if err != nil {
 			fmt.Println(err)
