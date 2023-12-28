@@ -9,11 +9,6 @@ import (
 
 func main() {
 
-	var wg sync.WaitGroup
-
-	sitesChan := make(chan string, 10)
-	mux := &sync.Mutex{}
-
 	command := Command{
 		RequestNumber: flag.Int("n", 10, "Number of requests"),
 		URL:           flag.String("u", "", "URL to make request(s) to"),
@@ -27,19 +22,17 @@ func main() {
 
 	flag.Parse()
 
-	wg.Add(1)
-	go func(wg *sync.WaitGroup, c chan string) {
-		defer wg.Done()
+	if *command.CRequests == 0 {
+		makeRequestSeq(command)
+		return
+	}
 
-		for i := 0; i < *command.RequestNumber+1; i++ {
-			sitesChan <- *command.URL
-		}
+	var wg sync.WaitGroup
 
-		close(c)
+	sitesChan := make(chan string, 10)
+	mux := &sync.Mutex{}
 
-	}(&wg, sitesChan)
-
-	makeRequest(command, &responseResult, sitesChan, &wg, mux)
+	makeRequestC(command, &responseResult, sitesChan, &wg, mux)
 
 	wg.Wait()
 	fmt.Println("Successes: ", responseResult.Successes)
@@ -57,16 +50,23 @@ type ResponseResult struct {
 	Failures  int
 }
 
-func makeRequest(command Command, responseResult *ResponseResult, c <-chan string, wg *sync.WaitGroup, mux *sync.Mutex) {
+func makeRequestC(command Command, responseResult *ResponseResult, c chan string, wg *sync.WaitGroup, mux *sync.Mutex) {
 	defer wg.Done()
+
+	wg.Add(1)
+	go func(wg *sync.WaitGroup, c chan string) {
+		defer wg.Done()
+
+		for i := 0; i < *command.RequestNumber+1; i++ {
+			c <- *command.URL
+		}
+
+		close(c)
+
+	}(wg, c)
 
 	if *command.URL == "" {
 		fmt.Println("no url to make request to")
-		return
-	}
-
-	if *command.CRequests == 0 {
-		makeRequestSeq(command)
 		return
 	}
 
@@ -104,6 +104,11 @@ func worker(sitesChan <-chan string, responseResult *ResponseResult, wg *sync.Wa
 }
 
 func makeRequestSeq(command Command) {
+
+	if *command.URL == "" {
+		fmt.Println("no url to make request to")
+		return
+	}
 
 	responseResult := ResponseResult{
 		Successes: 0,
