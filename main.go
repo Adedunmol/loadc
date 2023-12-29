@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math"
 	"net/http"
 	"sync"
+	"time"
 )
 
 func main() {
@@ -16,8 +18,10 @@ func main() {
 	}
 
 	responseResult := ResponseResult{
-		Successes: 0,
-		Failures:  0,
+		Successes:      0,
+		Failures:       0,
+		MinRequestTime: math.Inf(1),
+		MaxRequestTime: math.Inf(-1),
 	}
 
 	flag.Parse()
@@ -37,6 +41,7 @@ func main() {
 	wg.Wait()
 	fmt.Println("Successes: ", responseResult.Successes)
 	fmt.Println("Failures: ", responseResult.Failures)
+	fmt.Println("Total request time (min, max, mean)", responseResult.MinRequestTime, responseResult.MaxRequestTime, (responseResult.MaxRequestTime+responseResult.MinRequestTime)/2)
 }
 
 type Command struct {
@@ -46,8 +51,10 @@ type Command struct {
 }
 
 type ResponseResult struct {
-	Successes int
-	Failures  int
+	Successes      int
+	Failures       int
+	MinRequestTime float64
+	MaxRequestTime float64
 }
 
 func makeRequestC(command Command, responseResult *ResponseResult, c chan string, wg *sync.WaitGroup, mux *sync.Mutex) {
@@ -82,7 +89,11 @@ func worker(sitesChan <-chan string, responseResult *ResponseResult, wg *sync.Wa
 	defer wg.Done()
 
 	for site := range sitesChan {
+		startTime := time.Now()
+
 		response, err := http.Head(site)
+
+		endTime := time.Now()
 
 		if err != nil {
 			fmt.Println(err)
@@ -100,7 +111,17 @@ func worker(sitesChan <-chan string, responseResult *ResponseResult, wg *sync.Wa
 			responseResult.Failures += 1
 			mux.Unlock()
 		}
+
+		mux.Lock()
+		responseResult.MinRequestTime = math.Min(roundFloat((endTime.Sub(startTime).Seconds()), 2), responseResult.MinRequestTime)
+		responseResult.MaxRequestTime = math.Max(roundFloat((endTime.Sub(startTime).Seconds()), 2), responseResult.MaxRequestTime)
+		mux.Unlock()
 	}
+}
+
+func roundFloat(val float64, precision uint) float64 {
+	ratio := math.Pow(10, float64(precision))
+	return math.Round(val*ratio) / ratio
 }
 
 func makeRequestSeq(command Command) {
