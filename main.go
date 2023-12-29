@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"math"
@@ -27,7 +28,12 @@ func main() {
 	flag.Parse()
 
 	if *command.CRequests == 0 {
-		makeRequestSeq(command)
+		err := makeRequestSeq(command, responseResult)
+
+		if err != nil {
+			fmt.Println(err)
+		}
+
 		return
 	}
 
@@ -36,12 +42,20 @@ func main() {
 	sitesChan := make(chan string, 10)
 	mux := &sync.Mutex{}
 
-	makeRequestC(command, &responseResult, sitesChan, &wg, mux)
+	err := makeRequestC(command, &responseResult, sitesChan, &wg, mux)
+
+	if err != nil {
+		fmt.Println(err)
+
+		return
+	}
 
 	wg.Wait()
-	fmt.Println("Successes: ", responseResult.Successes)
-	fmt.Println("Failures: ", responseResult.Failures)
-	fmt.Println("Total request time (min, max, mean)", responseResult.MinRequestTime, responseResult.MaxRequestTime, (responseResult.MaxRequestTime+responseResult.MinRequestTime)/2)
+	fmt.Println("Results:")
+	fmt.Println(" Total Requests  (2xx)..........: ", responseResult.Successes)
+	fmt.Println(" Failed Requests (5xx).........: ", responseResult.Failures)
+	fmt.Println()
+	fmt.Println("Total request time (min, max, mean)...: ", responseResult.MinRequestTime, responseResult.MaxRequestTime, roundFloat((responseResult.MaxRequestTime+responseResult.MinRequestTime)/2, 2))
 }
 
 type Command struct {
@@ -57,7 +71,7 @@ type ResponseResult struct {
 	MaxRequestTime float64
 }
 
-func makeRequestC(command Command, responseResult *ResponseResult, c chan string, wg *sync.WaitGroup, mux *sync.Mutex) {
+func makeRequestC(command Command, responseResult *ResponseResult, c chan string, wg *sync.WaitGroup, mux *sync.Mutex) error {
 	defer wg.Done()
 
 	wg.Add(1)
@@ -73,8 +87,7 @@ func makeRequestC(command Command, responseResult *ResponseResult, c chan string
 	}(wg, c)
 
 	if *command.URL == "" {
-		fmt.Println("no url to make request to")
-		return
+		return errors.New("no url to make request to")
 	}
 
 	for i := 0; i < *command.CRequests; i++ {
@@ -82,7 +95,7 @@ func makeRequestC(command Command, responseResult *ResponseResult, c chan string
 		go worker(c, responseResult, wg, mux)
 	}
 
-	return
+	return nil
 }
 
 func worker(sitesChan <-chan string, responseResult *ResponseResult, wg *sync.WaitGroup, mux *sync.Mutex) {
@@ -124,16 +137,10 @@ func roundFloat(val float64, precision uint) float64 {
 	return math.Round(val*ratio) / ratio
 }
 
-func makeRequestSeq(command Command) {
+func makeRequestSeq(command Command, responseResult ResponseResult) error {
 
 	if *command.URL == "" {
-		fmt.Println("no url to make request to")
-		return
-	}
-
-	responseResult := ResponseResult{
-		Successes: 0,
-		Failures:  0,
+		return errors.New("no url to make request to")
 	}
 
 	for i := 0; i < *command.RequestNumber; i++ {
@@ -144,8 +151,7 @@ func makeRequestSeq(command Command) {
 		endTime := time.Now()
 
 		if err != nil {
-			fmt.Println(err)
-			return
+			return err
 		}
 
 		if response.StatusCode < 299 {
@@ -160,7 +166,11 @@ func makeRequestSeq(command Command) {
 		responseResult.MaxRequestTime = math.Max(roundFloat((endTime.Sub(startTime).Seconds()), 2), responseResult.MaxRequestTime)
 	}
 
-	fmt.Println("Successes: ", responseResult.Successes)
-	fmt.Println("Failures: ", responseResult.Failures)
-	fmt.Println("Total request time (min, max, mean)", responseResult.MinRequestTime, responseResult.MaxRequestTime, (responseResult.MaxRequestTime+responseResult.MinRequestTime)/2)
+	fmt.Println("Results:")
+	fmt.Println(" Total Requests  (2xx)..........: ", responseResult.Successes)
+	fmt.Println(" Failed Requests (5xx).........: ", responseResult.Failures)
+	fmt.Println()
+	fmt.Println("Total request time (min, max, mean)...: ", responseResult.MinRequestTime, responseResult.MaxRequestTime, roundFloat((responseResult.MaxRequestTime+responseResult.MinRequestTime)/2, 2))
+
+	return nil
 }
