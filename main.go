@@ -27,6 +27,8 @@ func main() {
 
 	flag.Parse()
 
+	var err error
+
 	if *command.CRequests != 0 {
 
 		var wg sync.WaitGroup
@@ -34,7 +36,7 @@ func main() {
 		sitesChan := make(chan string, 10)
 		mux := &sync.Mutex{}
 
-		err := makeRequestC(command, &responseResult, sitesChan, &wg, mux)
+		err = makeRequestC(command, &responseResult, sitesChan, &wg, mux)
 
 		if err != nil {
 			fmt.Println(err)
@@ -46,11 +48,15 @@ func main() {
 
 	} else {
 
-		err := makeRequestSeq(command, &responseResult)
+		err = makeRequestSeq(command, &responseResult)
 
 		if err != nil {
 			fmt.Println(err)
 		}
+	}
+
+	if err != nil {
+		return
 	}
 
 	fmt.Println("Results:")
