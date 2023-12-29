@@ -137,7 +137,11 @@ func makeRequestSeq(command Command) {
 	}
 
 	for i := 0; i < *command.RequestNumber; i++ {
+		startTime := time.Now()
+
 		response, err := http.Head(*command.URL)
+
+		endTime := time.Now()
 
 		if err != nil {
 			fmt.Println(err)
@@ -151,8 +155,12 @@ func makeRequestSeq(command Command) {
 		if response.StatusCode >= 500 {
 			responseResult.Failures += 1
 		}
+
+		responseResult.MinRequestTime = math.Min(roundFloat((endTime.Sub(startTime).Seconds()), 2), responseResult.MinRequestTime)
+		responseResult.MaxRequestTime = math.Max(roundFloat((endTime.Sub(startTime).Seconds()), 2), responseResult.MaxRequestTime)
 	}
 
 	fmt.Println("Successes: ", responseResult.Successes)
 	fmt.Println("Failures: ", responseResult.Failures)
+	fmt.Println("Total request time (min, max, mean)", responseResult.MinRequestTime, responseResult.MaxRequestTime, (responseResult.MaxRequestTime+responseResult.MinRequestTime)/2)
 }
