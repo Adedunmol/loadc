@@ -38,26 +38,16 @@ func main() {
 
 		err = makeRequestC(command, &responseResult, sitesChan, &wg, mux)
 
-		if err != nil {
-			fmt.Println("main", err)
-
-			return
-		}
-
 		wg.Wait()
 
 	} else {
 
 		err = makeRequestSeq(command, &responseResult)
 
-		if err != nil {
-			fmt.Println(err)
-
-			return
-		}
 	}
 
 	if err != nil {
+		fmt.Println(err)
 		return
 	}
 
