@@ -1,12 +1,12 @@
 # loadc
-A tool to simulate load on your webiste or API.
+A tool to simulate load on your website or API.
 
 # Usage Example
 
 # Compile the project
 ```console
 $ cd loadc
-$ go run main.go
+$ go build main.go
 ```
 # Make requests sequentially
 ```console

@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"flag"
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 )
@@ -16,6 +18,7 @@ func main() {
 		RequestNumber: flag.Int("n", 10, "Number of requests"),
 		URL:           flag.String("u", "", "URL to make request(s) to"),
 		CRequests:     flag.Int("c", 0, "Number of concurrent requests"),
+		FileLocation:  flag.String("f", "", "Location to file to read URLs from"),
 	}
 
 	responseResult := ResponseResult{
@@ -29,21 +32,27 @@ func main() {
 
 	var err error
 
-	if *command.CRequests != 0 {
+	var wg sync.WaitGroup
 
-		var wg sync.WaitGroup
+	mux := &sync.Mutex{}
 
-		sitesChan := make(chan string, 10)
-		mux := &sync.Mutex{}
+	if *command.FileLocation == "" {
 
-		err = makeRequestC(command, &responseResult, sitesChan, &wg, mux)
+		if *command.CRequests != 0 {
+
+			err = makeRequestC(command, &responseResult, &wg, mux)
+
+			wg.Wait()
+
+		} else {
+
+			err = makeRequestSeq(command, &responseResult)
+
+		}
+	} else {
+		makeRequestFile(command, &responseResult, &wg, mux)
 
 		wg.Wait()
-
-	} else {
-
-		err = makeRequestSeq(command, &responseResult)
-
 	}
 
 	if err != nil {
@@ -66,6 +75,7 @@ type Command struct {
 	RequestNumber *int
 	URL           *string
 	CRequests     *int
+	FileLocation  *string
 }
 
 type ResponseResult struct {
@@ -75,8 +85,10 @@ type ResponseResult struct {
 	MaxRequestTime float64
 }
 
-func makeRequestC(command Command, responseResult *ResponseResult, c chan string, wg *sync.WaitGroup, mux *sync.Mutex) error {
+func makeRequestC(command Command, responseResult *ResponseResult, wg *sync.WaitGroup, mux *sync.Mutex) error {
 	defer wg.Done()
+
+	newChan := make(chan string, 10)
 
 	wg.Add(1)
 	go func(wg *sync.WaitGroup, c chan string) {
@@ -88,15 +100,15 @@ func makeRequestC(command Command, responseResult *ResponseResult, c chan string
 
 		close(c)
 
-	}(wg, c)
+	}(wg, newChan)
 
-	if *command.URL == "" {
+	if *command.URL == "" && *command.FileLocation == "" {
 		return errors.New("no url to make request to")
 	}
 
 	wg.Add(*command.CRequests + 1)
 	for i := 0; i < *command.CRequests; i++ {
-		go worker(c, responseResult, wg, mux)
+		go worker(newChan, responseResult, wg, mux)
 	}
 
 	return nil
@@ -143,7 +155,7 @@ func roundFloat(val float64, precision uint) float64 {
 
 func makeRequestSeq(command Command, responseResult *ResponseResult) error {
 
-	if *command.URL == "" {
+	if *command.URL == "" && *command.FileLocation == "" {
 		return errors.New("no url to make request to")
 	}
 
@@ -171,4 +183,37 @@ func makeRequestSeq(command Command, responseResult *ResponseResult) error {
 	}
 
 	return nil
+}
+
+func makeRequestFile(command Command, responseResult *ResponseResult, wg *sync.WaitGroup, mux *sync.Mutex) {
+
+	fileDes, err := os.Open(*command.FileLocation)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer fileDes.Close()
+
+	bufferedReader := bufio.NewScanner(fileDes)
+
+	for bufferedReader.Scan() {
+		*command.URL = bufferedReader.Text()
+
+		if *command.CRequests != 0 {
+			err := makeRequestC(command, responseResult, wg, mux)
+
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+		} else {
+			err := makeRequestSeq(command, responseResult)
+
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+		}
+	}
 }
