@@ -12,65 +12,6 @@ import (
 	"time"
 )
 
-func main() {
-
-	command := Command{
-		RequestNumber: flag.Int("n", 10, "Number of requests"),
-		URL:           flag.String("u", "", "URL to make request(s) to"),
-		CRequests:     flag.Int("c", 0, "Number of concurrent requests"),
-		FileLocation:  flag.String("f", "", "Location to file to read URLs from"),
-	}
-
-	responseResult := ResponseResult{
-		Successes:      0,
-		Failures:       0,
-		MinRequestTime: math.Inf(1),
-		MaxRequestTime: math.Inf(-1),
-	}
-
-	flag.Parse()
-
-	var err error
-
-	var wg sync.WaitGroup
-
-	mux := &sync.Mutex{}
-
-	if *command.FileLocation == "" {
-
-		if *command.CRequests != 0 {
-
-			err = makeRequestC(command, &responseResult, &wg, mux)
-
-			wg.Wait()
-
-		} else {
-
-			err = makeRequestSeq(command, &responseResult)
-
-		}
-	} else {
-		makeRequestFile(command, &responseResult, &wg, mux)
-
-		wg.Wait()
-	}
-
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	if responseResult.Successes == 0 {
-		return
-	}
-
-	fmt.Println("Results:")
-	fmt.Println(" Total Requests  (2xx)..........: ", responseResult.Successes)
-	fmt.Println(" Failed Requests (5xx)..........: ", responseResult.Failures)
-	fmt.Println()
-	fmt.Println("Total request time (min, max, mean)...: ", responseResult.MinRequestTime, responseResult.MaxRequestTime, roundFloat((responseResult.MaxRequestTime+responseResult.MinRequestTime)/2, 2))
-}
-
 type Command struct {
 	RequestNumber *int
 	URL           *string
@@ -85,7 +26,7 @@ type ResponseResult struct {
 	MaxRequestTime float64
 }
 
-func makeRequestC(command Command, responseResult *ResponseResult, wg *sync.WaitGroup, mux *sync.Mutex) error {
+func (command *Command) makeRequestC(responseResult *ResponseResult, wg *sync.WaitGroup, mux *sync.Mutex) error {
 	defer wg.Done()
 
 	newChan := make(chan string, 10)
@@ -153,7 +94,7 @@ func roundFloat(val float64, precision uint) float64 {
 	return math.Round(val*ratio) / ratio
 }
 
-func makeRequestSeq(command Command, responseResult *ResponseResult) error {
+func (command *Command) makeRequestSeq(responseResult *ResponseResult) error {
 
 	if *command.URL == "" && *command.FileLocation == "" {
 		return errors.New("no url to make request to")
@@ -185,7 +126,7 @@ func makeRequestSeq(command Command, responseResult *ResponseResult) error {
 	return nil
 }
 
-func makeRequestFile(command Command, responseResult *ResponseResult, wg *sync.WaitGroup, mux *sync.Mutex) {
+func (command *Command) makeRequestFile(responseResult *ResponseResult, wg *sync.WaitGroup, mux *sync.Mutex) {
 
 	fileDes, err := os.Open(*command.FileLocation)
 
@@ -201,14 +142,14 @@ func makeRequestFile(command Command, responseResult *ResponseResult, wg *sync.W
 		*command.URL = bufferedReader.Text()
 
 		if *command.CRequests != 0 {
-			err := makeRequestC(command, responseResult, wg, mux)
+			err := command.makeRequestC(responseResult, wg, mux)
 
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
 		} else {
-			err := makeRequestSeq(command, responseResult)
+			err := command.makeRequestSeq(responseResult)
 
 			if err != nil {
 				fmt.Println(err)
@@ -216,4 +157,63 @@ func makeRequestFile(command Command, responseResult *ResponseResult, wg *sync.W
 			}
 		}
 	}
+}
+
+func main() {
+
+	command := Command{
+		RequestNumber: flag.Int("n", 10, "Number of requests"),
+		URL:           flag.String("u", "", "URL to make request(s) to"),
+		CRequests:     flag.Int("c", 0, "Number of concurrent requests"),
+		FileLocation:  flag.String("f", "", "Location to file to read URLs from"),
+	}
+
+	responseResult := ResponseResult{
+		Successes:      0,
+		Failures:       0,
+		MinRequestTime: math.Inf(1),
+		MaxRequestTime: math.Inf(-1),
+	}
+
+	flag.Parse()
+
+	var err error
+
+	var wg sync.WaitGroup
+
+	mux := &sync.Mutex{}
+
+	if *command.FileLocation == "" {
+
+		if *command.CRequests != 0 {
+
+			err = command.makeRequestC(&responseResult, &wg, mux)
+
+			wg.Wait()
+
+		} else {
+
+			err = command.makeRequestSeq(&responseResult)
+
+		}
+	} else {
+		command.makeRequestFile(&responseResult, &wg, mux)
+
+		wg.Wait()
+	}
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if responseResult.Successes == 0 {
+		return
+	}
+
+	fmt.Println("Results:")
+	fmt.Println(" Total Requests  (2xx)..........: ", responseResult.Successes)
+	fmt.Println(" Failed Requests (5xx)..........: ", responseResult.Failures)
+	fmt.Println()
+	fmt.Println("Total request time (min, max, mean)...: ", responseResult.MinRequestTime, responseResult.MaxRequestTime, roundFloat((responseResult.MaxRequestTime+responseResult.MinRequestTime)/2, 2))
 }
