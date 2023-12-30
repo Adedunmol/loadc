@@ -39,7 +39,7 @@ func main() {
 		err = makeRequestC(command, &responseResult, sitesChan, &wg, mux)
 
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("main", err)
 
 			return
 		}
@@ -52,6 +52,8 @@ func main() {
 
 		if err != nil {
 			fmt.Println(err)
+
+			return
 		}
 	}
 
@@ -61,7 +63,7 @@ func main() {
 
 	fmt.Println("Results:")
 	fmt.Println(" Total Requests  (2xx)..........: ", responseResult.Successes)
-	fmt.Println(" Failed Requests (5xx).........: ", responseResult.Failures)
+	fmt.Println(" Failed Requests (5xx)..........: ", responseResult.Failures)
 	fmt.Println()
 	fmt.Println("Total request time (min, max, mean)...: ", responseResult.MinRequestTime, responseResult.MaxRequestTime, roundFloat((responseResult.MaxRequestTime+responseResult.MinRequestTime)/2, 2))
 }
@@ -86,7 +88,7 @@ func makeRequestC(command Command, responseResult *ResponseResult, c chan string
 	go func(wg *sync.WaitGroup, c chan string) {
 		defer wg.Done()
 
-		for i := 0; i < *command.RequestNumber+1; i++ {
+		for i := 0; i < *command.RequestNumber; i++ {
 			c <- *command.URL
 		}
 
@@ -100,7 +102,6 @@ func makeRequestC(command Command, responseResult *ResponseResult, c chan string
 
 	wg.Add(*command.CRequests + 1)
 	for i := 0; i < *command.CRequests; i++ {
-		// wg.Add(1)
 		go worker(c, responseResult, wg, mux)
 	}
 
