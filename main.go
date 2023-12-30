@@ -27,7 +27,6 @@ type ResponseResult struct {
 }
 
 func (command *Command) makeRequestC(responseResult *ResponseResult, wg *sync.WaitGroup, mux *sync.Mutex) error {
-	defer wg.Done()
 
 	newChan := make(chan string, 10)
 
@@ -47,7 +46,7 @@ func (command *Command) makeRequestC(responseResult *ResponseResult, wg *sync.Wa
 		return errors.New("no url to make request to")
 	}
 
-	wg.Add(*command.CRequests + 1)
+	wg.Add(*command.CRequests)
 	for i := 0; i < *command.CRequests; i++ {
 		go worker(newChan, responseResult, wg, mux)
 	}
