@@ -51,6 +51,10 @@ func main() {
 		return
 	}
 
+	if responseResult.Successes == 0 {
+		return
+	}
+
 	fmt.Println("Results:")
 	fmt.Println(" Total Requests  (2xx)..........: ", responseResult.Successes)
 	fmt.Println(" Failed Requests (5xx)..........: ", responseResult.Failures)
